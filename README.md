@@ -72,6 +72,76 @@ uv run pytest --cov=src/study_python --cov-report=html
 uv run pre-commit run --all-files
 ```
 
+## バッチスクリプト
+
+`scripts/` フォルダにWindows(.bat)とUnix(.sh)両対応のスクリプトを用意しています。
+
+**すべてのスクリプトは実行時に依存関係を自動インストールします。**
+手動で `uv sync` を実行する必要はありません。
+
+### テスト実行（用途別）
+
+| スクリプト | 用途 | 速度 |
+|-----------|------|------|
+| `test.bat` / `test.sh` | 開発中の頻繁なテスト | 高速 |
+| `test-full.bat` / `test-full.sh` | カバレッジ確認・レビュー前 | 通常 |
+
+```bash
+# 高速テスト（開発中に使用）
+scripts\test.bat              # Windows
+./scripts/test.sh             # Unix/macOS
+
+# カバレッジ付きテスト（コミット前・レビュー時）
+scripts\test-full.bat         # Windows
+./scripts/test-full.sh        # Unix/macOS
+
+# オプション（すべてのスクリプトで共通）
+--verbose       # 詳細出力
+--fast          # 最初の失敗で停止
+--skip-install  # 依存関係のインストールをスキップ（高速化）
+```
+
+### リント・フォーマット
+
+```bash
+# Windows
+scripts\lint.bat
+
+# Unix/macOS
+./scripts/lint.sh
+
+# オプション
+--fix           # 自動修正を適用
+--check         # チェックのみ（デフォルト）
+--skip-install  # 依存関係のインストールをスキップ
+```
+
+### 全チェック（リント + 型チェック + テスト）
+
+```bash
+# Windows
+scripts\check-all.bat
+
+# Unix/macOS
+./scripts/check-all.sh
+
+# オプション
+--fix           # リント・フォーマットを自動修正
+--cov           # カバレッジを取得
+--skip-install  # 依存関係のインストールをスキップ
+```
+
+### カバレッジレポートの確認
+
+`test-full.bat` または `check-all.bat --cov` 実行後、
+`htmlcov/index.html` をブラウザで開くと：
+
+- ファイルごとのカバレッジ率
+- カバーされていない行のハイライト表示
+- 全体のカバレッジサマリー
+
+が確認できます。
+
 ## プロジェクト構造
 
 ```
@@ -85,6 +155,11 @@ uv run pre-commit run --all-files
 ├── .vscode/                # VSCode 共有設定
 │   ├── settings.json       # エディタ設定
 │   └── extensions.json     # 推奨拡張機能
+├── scripts/                # ユーティリティスクリプト
+│   ├── test.bat / test.sh        # テスト実行（高速）
+│   ├── test-full.bat / test-full.sh  # テスト実行（カバレッジ付き）
+│   ├── lint.bat / lint.sh        # リント・フォーマット
+│   └── check-all.bat / check-all.sh  # 全チェック
 ├── src/
 │   └── study_python/       # メインパッケージ
 │       ├── __init__.py
