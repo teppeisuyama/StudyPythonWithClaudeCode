@@ -163,12 +163,15 @@ scripts\check-all.bat
 ├── src/
 │   └── study_python/       # メインパッケージ
 │       ├── __init__.py
-│       ├── calculator.py   # サンプルモジュール
-│       └── py.typed        # PEP 561 マーカー
-└── tests/                  # テストコード
-    ├── __init__.py
-    ├── conftest.py         # pytest フィクスチャ
-    └── test_calculator.py  # サンプルテスト
+│       ├── calculator.py      # サンプルモジュール
+│       ├── logging_config.py  # ログ設定モジュール
+│       └── py.typed           # PEP 561 マーカー
+├── tests/                  # テストコード
+│   ├── __init__.py
+│   ├── conftest.py              # pytest フィクスチャ
+│   ├── test_calculator.py       # サンプルテスト
+│   └── test_logging_config.py   # ログ設定テスト
+└── logs/                   # ログファイル（.gitignore対象）
 ```
 
 ## VSCode 拡張機能
@@ -181,6 +184,62 @@ scripts\check-all.bat
 - **Ruff** - リンター＆フォーマッター
 - **EditorConfig** - エディタ設定の統一
 - **GitLens** - Git 履歴の可視化
+
+## ログ機能
+
+本プロジェクトでは、デバッグや問い合わせ対応のためにログ出力機能を標準で実装しています。
+
+### 基本的な使い方
+
+```python
+from study_python.logging_config import setup_logging, get_logger
+
+# アプリケーション起動時にログ設定を初期化
+setup_logging()
+
+# モジュールごとにロガーを取得
+logger = get_logger(__name__)
+
+# ログ出力
+logger.debug("デバッグ情報")
+logger.info("処理開始")
+logger.warning("警告メッセージ")
+logger.error("エラー発生")
+```
+
+### ログレベル
+
+| レベル | 用途 |
+|--------|------|
+| `DEBUG` | 開発時のデバッグ情報 |
+| `INFO` | 正常な処理の記録 |
+| `WARNING` | 注意が必要な状況 |
+| `ERROR` | エラー発生 |
+| `CRITICAL` | 重大なエラー |
+
+### ログファイルの保存先
+
+- **ディレクトリ**: `logs/`
+- **ファイル名**: `app_YYYY-MM-DD.log`（日付ローテーション）
+- **保持期間**: 30日間
+- **最大サイズ**: 10MB（サイズローテーション）
+
+### 設定のカスタマイズ
+
+```python
+from study_python.logging_config import setup_logging
+
+# ログレベルを変更
+setup_logging(level="DEBUG")
+
+# コンソール出力のみ（ファイル出力なし）
+setup_logging(log_to_file=False)
+
+# カスタムログディレクトリ
+setup_logging(log_dir="/path/to/logs")
+```
+
+詳細な実装ルールは [CLAUDE.md](CLAUDE.md) の「ログ出力ルール」セクションを参照してください。
 
 ## コーディング規約
 
