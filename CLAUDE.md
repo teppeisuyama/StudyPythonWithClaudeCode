@@ -148,6 +148,247 @@ def test_add_with_zero():
     assert add(0, 5) == 5
 ```
 
+### GUIテスト方針（重要）
+
+GUIアプリケーションもユニットテストの対象とする。**GUIとロジックを分離**し、ロジック部分は必ずテストを作成すること。
+
+#### アーキテクチャ原則
+
+GUIコードは以下の構造で実装する：
+
+```
+┌─────────────────────────────────────────┐
+│           GUI Layer (View)              │
+│  - ウィジェット配置                      │
+│  - イベントハンドラ                      │
+│  - 表示更新                              │
+└─────────────────────────────────────────┘
+                    ↓ 呼び出し
+┌─────────────────────────────────────────┐
+│         Logic Layer (Controller)         │
+│  - ビジネスロジック                      │
+│  - データ処理                            │
+│  - バリデーション                        │
+│  ※ このレイヤーをユニットテスト対象     │
+└─────────────────────────────────────────┘
+                    ↓ 呼び出し
+┌─────────────────────────────────────────┐
+│          Data Layer (Model)              │
+│  - データアクセス                        │
+│  - 永続化処理                            │
+└─────────────────────────────────────────┘
+```
+
+#### GUIロジック分離の実装例
+
+```python
+# src/study_python/gui/calculator_logic.py
+# ロジック部分（テスト対象）
+
+class CalculatorLogic:
+    """計算機のビジネスロジック。"""
+
+    def __init__(self) -> None:
+        self.current_value: float = 0
+        self.history: list[str] = []
+
+    def add(self, value: float) -> float:
+        """値を加算する。"""
+        self.current_value += value
+        self.history.append(f"+ {value}")
+        return self.current_value
+
+    def subtract(self, value: float) -> float:
+        """値を減算する。"""
+        self.current_value -= value
+        self.history.append(f"- {value}")
+        return self.current_value
+
+    def clear(self) -> None:
+        """リセットする。"""
+        self.current_value = 0
+        self.history.clear()
+
+    def validate_input(self, value: str) -> float:
+        """入力値を検証する。
+
+        Raises:
+            ValueError: 数値に変換できない場合。
+        """
+        try:
+            return float(value)
+        except ValueError:
+            raise ValueError(f"Invalid number: {value}")
+```
+
+```python
+# src/study_python/gui/calculator_gui.py
+# GUI部分（ロジックを呼び出すのみ）
+
+import tkinter as tk
+from study_python.gui.calculator_logic import CalculatorLogic
+
+
+class CalculatorGUI:
+    """計算機のGUI。"""
+
+    def __init__(self, root: tk.Tk) -> None:
+        self.root = root
+        self.logic = CalculatorLogic()  # ロジックを注入
+        self._setup_widgets()
+
+    def _setup_widgets(self) -> None:
+        """ウィジェットを配置する。"""
+        self.entry = tk.Entry(self.root)
+        self.entry.pack()
+
+        self.add_button = tk.Button(
+            self.root, text="+", command=self._on_add_click
+        )
+        self.add_button.pack()
+
+        self.result_label = tk.Label(self.root, text="0")
+        self.result_label.pack()
+
+    def _on_add_click(self) -> None:
+        """加算ボタンのクリックハンドラ。"""
+        try:
+            value = self.logic.validate_input(self.entry.get())
+            result = self.logic.add(value)
+            self.result_label.config(text=str(result))
+        except ValueError as e:
+            self.result_label.config(text=f"Error: {e}")
+```
+
+#### GUIロジックのテスト例
+
+```python
+# tests/gui/test_calculator_logic.py
+import pytest
+from study_python.gui.calculator_logic import CalculatorLogic
+
+
+class TestCalculatorLogic:
+    """CalculatorLogicのテスト。"""
+
+    def test_add_positive_value(self):
+        """正の値の加算テスト。"""
+        logic = CalculatorLogic()
+        result = logic.add(5)
+        assert result == 5
+        assert logic.current_value == 5
+
+    def test_add_multiple_values(self):
+        """複数回の加算テスト。"""
+        logic = CalculatorLogic()
+        logic.add(5)
+        result = logic.add(3)
+        assert result == 8
+
+    def test_subtract(self):
+        """減算テスト。"""
+        logic = CalculatorLogic()
+        logic.add(10)
+        result = logic.subtract(3)
+        assert result == 7
+
+    def test_clear(self):
+        """リセットテスト。"""
+        logic = CalculatorLogic()
+        logic.add(10)
+        logic.clear()
+        assert logic.current_value == 0
+        assert logic.history == []
+
+    def test_validate_input_valid(self):
+        """有効な入力値のテスト。"""
+        logic = CalculatorLogic()
+        assert logic.validate_input("123") == 123.0
+        assert logic.validate_input("45.67") == 45.67
+        assert logic.validate_input("-10") == -10.0
+
+    def test_validate_input_invalid(self):
+        """無効な入力値のテスト。"""
+        logic = CalculatorLogic()
+        with pytest.raises(ValueError, match="Invalid number"):
+            logic.validate_input("abc")
+
+    def test_history_tracking(self):
+        """履歴追跡のテスト。"""
+        logic = CalculatorLogic()
+        logic.add(5)
+        logic.subtract(2)
+        assert logic.history == ["+ 5", "- 2"]
+```
+
+#### GUIフレームワーク別のテスト方法
+
+| フレームワーク | テストライブラリ | 用途 |
+|---------------|-----------------|------|
+| Tkinter | `unittest.mock` | イベントのモック |
+| PyQt/PySide | `pytest-qt` | Qtウィジェットのテスト |
+| Kivy | `pytest` + モック | イベント・状態のテスト |
+| wxPython | `unittest.mock` | イベントのモック |
+
+#### pytest-qt を使用したGUIテスト例（PyQt/PySide）
+
+```python
+# tests/gui/test_calculator_gui_qt.py
+import pytest
+from pytestqt.qtbot import QtBot
+from PySide6.QtCore import Qt
+from study_python.gui.calculator_gui_qt import CalculatorWindow
+
+
+@pytest.fixture
+def calculator(qtbot: QtBot) -> CalculatorWindow:
+    """計算機ウィンドウのフィクスチャ。"""
+    window = CalculatorWindow()
+    qtbot.addWidget(window)
+    return window
+
+
+def test_add_button_click(calculator: CalculatorWindow, qtbot: QtBot):
+    """加算ボタンクリックのテスト。"""
+    calculator.input_field.setText("5")
+    qtbot.mouseClick(calculator.add_button, Qt.LeftButton)
+    assert calculator.result_label.text() == "5"
+
+
+def test_invalid_input_shows_error(calculator: CalculatorWindow, qtbot: QtBot):
+    """無効入力時のエラー表示テスト。"""
+    calculator.input_field.setText("abc")
+    qtbot.mouseClick(calculator.add_button, Qt.LeftButton)
+    assert "Error" in calculator.result_label.text()
+```
+
+#### テストディレクトリ構成
+
+```
+tests/
+├── conftest.py              # 共通フィクスチャ
+├── test_calculator.py       # 通常のユニットテスト
+└── gui/                     # GUIテスト専用ディレクトリ
+    ├── __init__.py
+    ├── conftest.py          # GUI用フィクスチャ
+    ├── test_calculator_logic.py   # ロジックのテスト
+    └── test_calculator_gui.py     # GUI統合テスト（オプション）
+```
+
+#### GUIテストのルール
+
+1. **ロジック分離必須**: GUIからビジネスロジックを分離する
+2. **ロジックは100%カバレッジ**: 分離したロジックは通常のユニットテスト対象
+3. **GUI層は最小限**: GUI層はロジック呼び出しと表示更新のみ
+4. **依存性注入**: ロジッククラスはGUIクラスに注入可能にする
+5. **モックの活用**: 外部依存はモックで置き換える
+
+#### 禁止事項
+
+- GUIクラス内にビジネスロジックを直接記述すること
+- ロジック部分のテストを省略すること
+- GUIイベントハンドラ内で複雑な処理を行うこと
+
 ## カバレッジ方針（重要）
 
 コードの品質を保証するため、テストカバレッジ率100%を目指す。
@@ -441,9 +682,270 @@ def process_user_data(user_id: int, data: dict) -> bool:
 - 大量データはログに出力せず、件数やサマリーを記録する
 - 本番環境では `INFO` 以上、開発環境では `DEBUG` 以上を出力する
 
+## ドキュメント管理（重要）
+
+プログラムの作成・変更を行った際は、必ず関連ドキュメントを最新化すること。
+
+### 必須ドキュメント
+
+| ドキュメント | 配置場所 | 更新タイミング |
+|-------------|---------|---------------|
+| README.md | プロジェクトルート | 機能追加・変更時 |
+| 設計書 | `docs/design/` | アーキテクチャ変更時 |
+| 仕様書 | `docs/specs/` | 機能仕様変更時 |
+| 要件定義書 | `docs/requirements/` | 要件追加・変更時 |
+| API仕様書 | `docs/api/` | API変更時 |
+| CHANGELOG.md | プロジェクトルート | リリース時 |
+
+### README.md 更新ルール
+
+README.mdには以下の情報を常に最新の状態で維持する：
+
+1. **プロジェクト概要**: 目的と主要機能の説明
+2. **インストール方法**: 依存関係とセットアップ手順
+3. **使用方法**: 基本的な使い方とコード例
+4. **設定**: 環境変数や設定ファイルの説明
+5. **コマンド一覧**: 利用可能なコマンドとオプション
+
+### 設計書・仕様書の更新ルール
+
+#### 更新が必要なケース
+
+- **新機能追加**: 機能の目的、設計、インターフェースを文書化
+- **既存機能の変更**: 変更内容と影響範囲を更新
+- **アーキテクチャ変更**: システム構成図、データフロー図を更新
+- **API変更**: エンドポイント、リクエスト/レスポンス仕様を更新
+- **データベース変更**: スキーマ、ER図を更新
+
+#### ドキュメント構成例
+
+```
+docs/
+├── design/
+│   ├── architecture.md      # システムアーキテクチャ
+│   ├── database.md          # データベース設計
+│   └── diagrams/            # 図表（PlantUML、Mermaid等）
+├── specs/
+│   ├── feature_xxx.md       # 機能仕様書
+│   └── api_spec.md          # API仕様書
+├── requirements/
+│   ├── functional.md        # 機能要件
+│   └── non_functional.md    # 非機能要件
+└── guides/
+    ├── development.md       # 開発ガイド
+    └── deployment.md        # デプロイガイド
+```
+
+### ドキュメント記載ルール
+
+1. **日付の記録**: 更新日を必ず記載する
+2. **変更履歴**: 重要な変更は履歴として残す
+3. **図表の活用**: 複雑な処理はフローチャートやシーケンス図で説明
+4. **コード例**: 使用方法は具体的なコード例を含める
+5. **用語の統一**: プロジェクト内で用語を統一する
+
+### Mermaid図表の例
+
+```markdown
+## シーケンス図
+
+​```mermaid
+sequenceDiagram
+    participant User
+    participant API
+    participant Database
+
+    User->>API: リクエスト
+    API->>Database: クエリ
+    Database-->>API: 結果
+    API-->>User: レスポンス
+​```
+```
+
+### チェックリスト
+
+コード変更時は以下を確認すること：
+
+- [ ] README.mdの内容は最新か
+- [ ] 新機能の仕様書は作成したか
+- [ ] 既存の設計書に影響はないか
+- [ ] APIの変更はAPI仕様書に反映したか
+- [ ] 図表（アーキテクチャ図等）の更新は必要か
+- [ ] CHANGELOGに変更内容を追記したか
+
+### 注意事項
+
+- ドキュメントの更新を忘れた場合、PRレビューで指摘すること
+- 古いドキュメントは混乱の元になるため、常に最新化を優先する
+- ドキュメントが存在しない場合は新規作成する
+- 不要になったドキュメントは削除または非推奨マークを付ける
+
 ## ClaudeCode 使用時の注意
 
 1. **変更前に確認**: ファイルを編集する前に必ず内容を確認する
 2. **小さな変更**: 大きな変更は小さなステップに分割する
-3. **テスト実行**: コード変更後は必ずテストを実行する
+3. **テスト実行**: コード変更後は必ずテストを実行する（下記参照）
 4. **既存コードの尊重**: プロジェクトの既存パターンに従う
+
+### テスト自動実行ルール（必須）
+
+**プログラムを修正した際は、必ずユニットテストを実行すること。**
+
+#### 実行タイミング
+
+以下の変更を行った場合、**必ず**テストを実行する：
+
+- `src/` 配下のPythonファイルを新規作成・修正した場合
+- `tests/` 配下のテストファイルを新規作成・修正した場合
+- `pyproject.toml` の依存関係を変更した場合
+- 設定ファイル（`.env`等）を変更した場合
+
+#### 実行コマンド
+
+```bash
+# 基本のテスト実行
+uv run pytest
+
+# カバレッジ付きテスト実行（推奨）
+uv run pytest --cov=src/study_python --cov-report=term-missing
+
+# 特定のテストファイルのみ実行
+uv run pytest tests/test_specific.py -v
+
+# 失敗したテストのみ再実行
+uv run pytest --lf
+```
+
+#### テスト実行フロー
+
+```
+コード修正
+    ↓
+テスト実行 (uv run pytest)
+    ↓
+┌─────────────────┐
+│ テスト結果確認   │
+└─────────────────┘
+    ↓           ↓
+  成功         失敗
+    ↓           ↓
+  完了      原因調査・修正
+              ↓
+           再テスト
+```
+
+#### テスト失敗時の自動修正ルール（必須）
+
+**テストが失敗した場合、ClaudeCodeは自動的に原因調査と修正を行うこと。**
+
+##### 自動修正フロー
+
+```
+テスト失敗検出
+    ↓
+┌─────────────────────────────────┐
+│ 1. エラーメッセージの解析        │
+│    - 失敗したテスト名を特定      │
+│    - エラータイプを確認          │
+│    - スタックトレースを解析      │
+└─────────────────────────────────┘
+    ↓
+┌─────────────────────────────────┐
+│ 2. 原因の特定                    │
+│    - 該当ソースコードを読む      │
+│    - テストコードを確認          │
+│    - 期待値と実際の値を比較      │
+└─────────────────────────────────┘
+    ↓
+┌─────────────────────────────────┐
+│ 3. 修正の実施                    │
+│    - ソースコードを修正          │
+│    - または テストを修正         │
+│    - 修正内容をログに記録        │
+└─────────────────────────────────┘
+    ↓
+┌─────────────────────────────────┐
+│ 4. 再テスト実行                  │
+│    - 全テストを再実行            │
+│    - 成功するまで繰り返す        │
+└─────────────────────────────────┘
+    ↓
+  全テスト成功 → 完了
+```
+
+##### エラータイプ別の対応方針
+
+| エラータイプ | 原因 | 対応方法 |
+|-------------|------|---------|
+| `AssertionError` | 期待値と実際の値が不一致 | ロジックを確認し、ソースまたはテストを修正 |
+| `ImportError` | モジュールが見つからない | インポートパスを確認・修正 |
+| `AttributeError` | 属性・メソッドが存在しない | クラス定義を確認・修正 |
+| `TypeError` | 型の不一致 | 引数の型を確認・修正 |
+| `ValueError` | 不正な値 | バリデーションロジックを確認 |
+| `KeyError` | 辞書キーが存在しない | キーの存在確認を追加 |
+| `FileNotFoundError` | ファイルが見つからない | パスを確認・テストフィクスチャを修正 |
+
+##### 修正の優先順位
+
+1. **ソースコードのバグ修正**: 明らかなバグがある場合
+2. **テストの期待値修正**: 仕様変更に伴う場合
+3. **テストフィクスチャの修正**: テストデータの問題の場合
+4. **モックの追加・修正**: 外部依存の問題の場合
+
+##### 自動修正の実行例
+
+```python
+# テスト失敗例
+# FAILED tests/test_calculator.py::test_add - AssertionError: assert 5 == 4
+
+# 1. エラー解析
+#    - test_add が失敗
+#    - 期待値: 4, 実際の値: 5
+
+# 2. 原因特定
+#    - calculator.py の add 関数を確認
+#    - テストコードの期待値を確認
+
+# 3. 修正実施（ソースコードにバグがある場合）
+def add(a: int, b: int) -> int:
+    return a + b  # 修正: a + b + 1 → a + b
+
+# 4. 再テスト実行
+#    uv run pytest tests/test_calculator.py -v
+```
+
+##### 修正時の注意事項
+
+- **最小限の修正**: 失敗の原因となっている箇所のみ修正する
+- **他への影響確認**: 修正が他のテストに影響しないか確認する
+- **修正理由の記録**: なぜその修正を行ったかをコメントで説明する
+- **繰り返し上限**: 同じエラーが3回続く場合はユーザーに報告する
+
+##### 自動修正できないケース
+
+以下の場合はユーザーに確認を求める：
+
+- 仕様の解釈が曖昧な場合
+- 複数の修正方法が考えられる場合
+- 外部サービスへの接続が必要な場合
+- セキュリティに関わる修正の場合
+- 大規模なリファクタリングが必要な場合
+
+#### 禁止事項
+
+- テストを実行せずにコミットすること
+- 失敗するテストを無視してコミットすること
+- テストをスキップ（`@pytest.mark.skip`）して問題を回避すること
+- カバレッジが下がる変更を理由なく行うこと
+
+#### テスト実行の自動化
+
+ClaudeCodeは以下のワークフローを必ず守ること：
+
+```
+1. コード修正を完了
+2. uv run pytest を実行
+3. 結果を確認
+4. 失敗があれば修正して再実行
+5. 全テスト成功を確認してから次の作業へ
+```
