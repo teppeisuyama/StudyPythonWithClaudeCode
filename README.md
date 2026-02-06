@@ -1,6 +1,6 @@
-# StudyPythonWithClaudeCode
+# プロジェクト名
 
-PythonとClaudeCodeを学習するためのリポジトリです。
+プロジェクトの概要を記載してください。
 
 ## 必要条件
 
@@ -12,8 +12,8 @@ PythonとClaudeCodeを学習するためのリポジトリです。
 ### 1. リポジトリのクローン
 
 ```bash
-git clone https://github.com/your-username/StudyPythonWithClaudeCode.git
-cd StudyPythonWithClaudeCode
+git clone https://github.com/your-username/your-project.git
+cd your-project
 ```
 
 ### 2. 依存関係のインストール
